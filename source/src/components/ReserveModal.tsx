@@ -111,7 +111,7 @@ export default function ReserveModal({
                 {contact.lastName}. A confirmation was sent to {contact.email}.
               </span>
             </div>
-            <div className="ticket-chips" style={{ maxHeight: 'none' }}>
+            <div className="ticket-chips">
               {confirmed.map((t) => (
                 <span key={t} className="ticket-chip" title={t}>
                   {t}
@@ -179,7 +179,7 @@ export default function ReserveModal({
               </div>
             ) : (
               <>
-                <div className="ticket-chips" style={{ maxHeight: 'none' }}>
+                <div className="ticket-chips">
                   {selected.map((t) => (
                     <button
                       key={t}

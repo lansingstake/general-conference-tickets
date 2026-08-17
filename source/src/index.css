@@ -465,14 +465,13 @@ h1, h2, h3, h4 {
   flex-wrap: wrap;
   justify-content: center;
   align-content: flex-start;
-  gap: 0.6rem;
-  font-size: 1.125rem;
+  gap: 0.45rem;
+  font-size: 0.875rem;
   background: var(--inset-bg);
   border: 1px solid rgba(255, 255, 255, 0.03);
   border-radius: 10px;
-  padding: 0.7rem;
-  max-height: 330px;
-  overflow-y: auto;
+  /* Every seat is visible at once — no inner scrolling. */
+  padding: 0.6rem 0.5rem;
 }
 
 .ticket-chip {
@@ -483,7 +482,7 @@ h1, h2, h3, h4 {
   align-items: center;
   justify-content: center;
   max-width: 100%;
-  padding: 0.2rem 1rem;
+  padding: 0.2rem 0.7rem;
   border-radius: 8px;
   background: rgba(99, 102, 241, 0.12);
   border: 1px solid rgba(99, 102, 241, 0.25);
@@ -1316,14 +1315,10 @@ table.data-table tr.selected td { background: rgba(99, 102, 241, 0.09); }
   .app-title { font-size: 2.15rem; }
   .form-grid { grid-template-columns: 1fr; }
 
-  /* Phone cards are narrower, so start the bubbles smaller. The auto-fit pass
-     shrinks further only if a label still does not fit. */
-  .ticket-chips {
-    font-size: 1rem;
-  }
-
+  /* The base size already fits a phone-width card. The auto-fit pass shrinks
+     further only if a label still does not fit. */
   .ticket-chip {
-    padding: 0.2rem 0.75rem;
+    padding: 0.2rem 0.6rem;
   }
   .ticket-picker { grid-template-columns: 1fr; max-height: 260px; }
   .toast-container { left: 1rem; right: 1rem; bottom: 1rem; }
