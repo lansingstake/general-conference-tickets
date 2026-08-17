@@ -1,3 +1,4 @@
+import { safeStorage } from './api';
 import type { ContactDetails } from './types';
 
 /** Units in the Lansing Michigan Stake. 'Other' opens a free-text box. */
@@ -35,7 +36,7 @@ const CONTACT_KEY = 'gc_tickets_contact';
 /** Remembering the contact details locally saves re-typing on a second request. */
 export function loadSavedContact(): ContactDetails {
   try {
-    const raw = localStorage.getItem(CONTACT_KEY);
+    const raw = safeStorage.get(CONTACT_KEY);
     if (!raw) return { ...EMPTY_CONTACT };
     // Notes are per-request, so they are deliberately not restored.
     return { ...EMPTY_CONTACT, ...JSON.parse(raw), notes: '' };
@@ -45,21 +46,17 @@ export function loadSavedContact(): ContactDetails {
 }
 
 export function saveContact(c: ContactDetails) {
-  try {
-    localStorage.setItem(
-      CONTACT_KEY,
-      JSON.stringify({
-        firstName: c.firstName,
-        lastName: c.lastName,
-        email: c.email,
-        phone: c.phone,
-        ward: c.ward,
-        wardOther: c.wardOther,
-      })
-    );
-  } catch {
-    /* private browsing — not worth surfacing */
-  }
+  safeStorage.set(
+    CONTACT_KEY,
+    JSON.stringify({
+      firstName: c.firstName,
+      lastName: c.lastName,
+      email: c.email,
+      phone: c.phone,
+      ward: c.ward,
+      wardOther: c.wardOther,
+    })
+  );
 }
 
 /** (517) 555-0134 as you type; anything not US-shaped is left alone. */

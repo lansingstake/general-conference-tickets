@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Check, ListPlus, X } from 'lucide-react';
 import { ApiError, newToken, post } from '../api';
 import type { ContactDetails, PublicSession, ToastMessage } from '../types';
@@ -38,6 +38,9 @@ export default function WaitListModal({
   const [serverError, setServerError] = useState('');
   const [done, setDone] = useState(false);
 
+  // One token per modal so a timed-out retry is not recorded twice.
+  const requestToken = useRef(newToken());
+
   const errors: ContactErrors = useMemo(() => validateContact(contact), [contact]);
 
   const submit = async (e: React.FormEvent) => {
@@ -54,7 +57,7 @@ export default function WaitListModal({
     try {
       await post(scriptUrl, {
         action: 'waitlist',
-        clientToken: newToken(),
+        clientToken: requestToken.current,
         session,
         ticketsWanted,
         firstName: contact.firstName.trim(),

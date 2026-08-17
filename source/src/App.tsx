@@ -6,7 +6,7 @@ import {
   RefreshCw,
   Settings,
 } from 'lucide-react';
-import { ApiError, fetchPublic, getScriptUrl, saveScriptUrl } from './api';
+import { ApiError, fetchPublic, getScriptUrl, safeStorage, saveScriptUrl } from './api';
 import type { PublicPayload, ToastMessage } from './types';
 import PublicView from './components/PublicView';
 import AdminView from './components/AdminView';
@@ -28,7 +28,7 @@ const prefersDark = () =>
  * itself is set to dark.
  */
 function initialTheme(): 'light' | 'dark' {
-  const stored = localStorage.getItem(THEME_KEY);
+  const stored = safeStorage.get(THEME_KEY);
   if (stored === 'light' || stored === 'dark') return stored;
   return prefersDark() ? 'dark' : 'light';
 }
@@ -45,7 +45,7 @@ export default function App() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   const [autoRefresh, setAutoRefresh] = useState<boolean>(
-    () => localStorage.getItem(AUTO_REFRESH_KEY) !== 'off'
+    () => safeStorage.get(AUTO_REFRESH_KEY) !== 'off'
   );
   const [theme, setTheme] = useState<'light' | 'dark'>(initialTheme);
 
@@ -64,7 +64,7 @@ export default function App() {
    * in place, so a later switch to dark mode would never be picked up.
    */
   const chooseTheme = useCallback((next: 'light' | 'dark') => {
-    localStorage.setItem(THEME_KEY, next);
+    safeStorage.set(THEME_KEY, next);
     setTheme(next);
   }, []);
 
@@ -73,7 +73,7 @@ export default function App() {
     if (typeof window.matchMedia !== 'function') return;
     const query = window.matchMedia('(prefers-color-scheme: dark)');
     const onChange = (e: MediaQueryListEvent) => {
-      if (localStorage.getItem(THEME_KEY)) return;
+      if (safeStorage.get(THEME_KEY)) return;
       setTheme(e.matches ? 'dark' : 'light');
     };
     query.addEventListener('change', onChange);
@@ -91,7 +91,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(AUTO_REFRESH_KEY, autoRefresh ? 'on' : 'off');
+    safeStorage.set(AUTO_REFRESH_KEY, autoRefresh ? 'on' : 'off');
   }, [autoRefresh]);
 
   const addToast = useCallback((type: ToastMessage['type'], text: string) => {

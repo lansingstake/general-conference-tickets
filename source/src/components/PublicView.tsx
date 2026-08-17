@@ -86,17 +86,25 @@ export default function PublicView({
   // Shrink a session's bubbles if its labels are too long for the card.
   const fitLabels = useFitLabels([availabilityKey, sessions.length]);
   useEffect(() => {
-    setPicked((prev) => {
-      let changed = false;
-      const next: Record<string, string[]> = {};
-      Object.entries(prev).forEach(([key, labels]) => {
-        const session = sessions.find((s) => s.key === key);
-        const stillOpen = session ? labels.filter((l) => session.tickets.includes(l)) : [];
-        if (stillOpen.length !== labels.length) changed = true;
-        next[key] = stillOpen;
-      });
-      return changed ? next : prev;
+    const lost: string[] = [];
+    const next: Record<string, string[]> = {};
+    Object.entries(picked).forEach(([key, labels]) => {
+      const session = sessions.find((s) => s.key === key);
+      const stillOpen = session ? labels.filter((l) => session.tickets.includes(l)) : [];
+      labels.filter((l) => !stillOpen.includes(l)).forEach((l) => lost.push(l));
+      next[key] = stillOpen;
     });
+    if (!lost.length) return;
+
+    setPicked(next);
+    // Say so plainly. Dropping a seat silently would let someone confirm fewer
+    // tickets than they thought they had chosen.
+    addToast(
+      'error',
+      lost.length === 1
+        ? `${lost[0]} was just taken by someone else, so it has been removed from your selection.`
+        : `${lost.length} of your selected seats were just taken by someone else and have been removed: ${lost.join(', ')}.`
+    );
     // Depends on the availability snapshot, not on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availabilityKey]);

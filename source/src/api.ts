@@ -2,19 +2,66 @@ import type { AdminPayload, PublicPayload } from './types';
 
 const URL_STORAGE_KEY = 'gc_tickets_apps_script_url';
 
+/**
+ * Apps Script can legitimately take a while — it waits up to 25s for the script
+ * lock before giving up — so writes get a long ceiling. Without any ceiling a
+ * stalled mobile connection leaves the button spinning forever with no way out.
+ */
+const READ_TIMEOUT_MS = 20000;
+const WRITE_TIMEOUT_MS = 45000;
+
+/** localStorage throws in some locked-down mobile browser modes. Never fatal. */
+export const safeStorage = {
+  get(key: string): string | null {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  set(key: string, value: string) {
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      /* nothing we can do, and nothing worth interrupting the user for */
+    }
+  },
+  remove(key: string) {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      /* ignore */
+    }
+  },
+};
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Where the Apps Script web app lives. Env var wins, then a saved value. */
 export function getScriptUrl(): string {
   const fromEnv = (import.meta.env.VITE_APPS_SCRIPT_URL as string | undefined) || '';
   if (fromEnv) return fromEnv;
-  return localStorage.getItem(URL_STORAGE_KEY) || '';
+  return safeStorage.get(URL_STORAGE_KEY) || '';
 }
 
 export function saveScriptUrl(url: string) {
-  localStorage.setItem(URL_STORAGE_KEY, url.trim());
+  safeStorage.set(URL_STORAGE_KEY, url.trim());
 }
 
 export function clearScriptUrl() {
-  localStorage.removeItem(URL_STORAGE_KEY);
+  safeStorage.remove(URL_STORAGE_KEY);
 }
 
 export class ApiError extends Error {
@@ -26,6 +73,13 @@ export class ApiError extends Error {
 }
 
 function friendlyNetworkError(err: unknown): ApiError {
+  if (err instanceof DOMException && err.name === 'AbortError') {
+    return new ApiError(
+      'The request timed out. Check your connection and try again — if your tickets went ' +
+        'through, trying again will simply show them rather than booking twice.',
+      'timeout'
+    );
+  }
   const raw = err instanceof Error ? err.message : String(err);
   if (/failed to fetch|networkerror|load failed/i.test(raw)) {
     return new ApiError(
@@ -39,7 +93,7 @@ function friendlyNetworkError(err: unknown): ApiError {
 
 export async function fetchPublic(url: string): Promise<PublicPayload> {
   try {
-    const res = await fetch(url, { method: 'GET' });
+    const res = await fetchWithTimeout(url, { method: 'GET' }, READ_TIMEOUT_MS);
     if (!res.ok) throw new ApiError(`Server responded with ${res.status}.`);
     const data = await res.json();
     if (data.status === 'error') throw new ApiError(data.message, data.code);
@@ -53,7 +107,7 @@ export async function fetchPublic(url: string): Promise<PublicPayload> {
 export async function fetchAdmin(url: string, passcode: string): Promise<AdminPayload> {
   const target = `${url}${url.includes('?') ? '&' : '?'}admin=1&passcode=${encodeURIComponent(passcode)}`;
   try {
-    const res = await fetch(target, { method: 'GET' });
+    const res = await fetchWithTimeout(target, { method: 'GET' }, READ_TIMEOUT_MS);
     if (!res.ok) throw new ApiError(`Server responded with ${res.status}.`);
     const data = await res.json();
     if (data.status === 'error') throw new ApiError(data.message, data.code);
@@ -70,11 +124,15 @@ export async function fetchAdmin(url: string, passcode: string): Promise<AdminPa
  */
 export async function post<T = any>(url: string, payload: Record<string, unknown>): Promise<T> {
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload),
-    });
+    const res = await fetchWithTimeout(
+      url,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload),
+      },
+      WRITE_TIMEOUT_MS
+    );
     if (!res.ok) throw new ApiError(`Server responded with ${res.status}.`);
     const data = await res.json();
     if (data.status === 'error') throw new ApiError(data.message, data.code);

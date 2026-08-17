@@ -761,8 +761,11 @@ button.ticket-chip svg {
   border: 1px solid var(--field-border);
   border-radius: 8px;
   color: var(--text-primary);
-  padding: 0.65rem 0.8rem;
-  font-size: 0.925rem;
+  padding: 0.6rem 0.8rem;
+  /* Must stay at 16px or more. iOS Safari force-zooms the page when a smaller
+     control gets focus and never zooms back out, which pushes the submit button
+     off screen and makes the form look stuck. */
+  font-size: 16px;
   font-family: inherit;
   width: 100%;
   box-sizing: border-box;

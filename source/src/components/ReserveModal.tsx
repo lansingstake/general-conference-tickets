@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Check, Clock, Info, Ticket, X } from 'lucide-react';
 import { ApiError, newToken, post } from '../api';
 import type { ContactDetails, PublicSession, ToastMessage } from '../types';
@@ -43,6 +43,14 @@ export default function ReserveModal({
   const [serverError, setServerError] = useState('');
   const [confirmed, setConfirmed] = useState<string[] | null>(null);
 
+  /**
+   * One token for the whole modal, not one per click. If a submission times out
+   * after the server already wrote the rows, retrying with the same token is
+   * recognised as the same request and returns success — a fresh token instead
+   * would be treated as a second booking and rejected on the per-person cap.
+   */
+  const requestToken = useRef(newToken());
+
   const errors: ContactErrors = useMemo(() => validateContact(contact), [contact]);
 
   const submit = async (e: React.FormEvent) => {
@@ -60,7 +68,7 @@ export default function ReserveModal({
     try {
       const result = await post<{ tickets: string[] }>(scriptUrl, {
         action: 'reserve',
-        clientToken: newToken(),
+        clientToken: requestToken.current,
         session: session.name,
         sessionTime: session.time,
         tickets: selected,
