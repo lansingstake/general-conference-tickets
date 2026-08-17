@@ -18,6 +18,7 @@ import type { PublicPayload, ToastMessage } from '../types';
 import ReserveModal from './ReserveModal';
 import WaitListModal, { ANY_SESSION } from './WaitListModal';
 import ReleaseModal from './ReleaseModal';
+import { useFitLabels } from '../useFitLabels';
 
 interface Props {
   data: PublicPayload;
@@ -81,6 +82,9 @@ export default function PublicView({
   // A background refresh can claim a seat someone had picked but not submitted.
   // Drop those quietly rather than letting the request fail at submit time.
   const availabilityKey = sessions.map((s) => `${s.key}:${s.tickets.join(',')}`).join('|');
+
+  // Shrink a session's bubbles if its labels are too long for the card.
+  const fitLabels = useFitLabels([availabilityKey, sessions.length]);
   useEffect(() => {
     setPicked((prev) => {
       let changed = false;
@@ -104,10 +108,6 @@ export default function PublicView({
 
   const intervalNote = describeInterval(config.refreshIntervalSeconds);
   const totalAvailable = sessions.reduce((sum, s) => sum + s.available, 0);
-
-  const scrollTo = (key: string) => {
-    document.getElementById(`session-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
 
   return (
     <>
@@ -208,17 +208,6 @@ export default function PublicView({
         </div>
       )}
 
-      {sessions.length > 1 && (
-        <nav className="sections-nav">
-          {sessions.map((s) => (
-            <button key={s.key} className="nav-item" onClick={() => scrollTo(s.key)}>
-              {s.name}
-              <span className="count">({s.available})</span>
-            </button>
-          ))}
-        </nav>
-      )}
-
       {sessions.length === 0 ? (
         <div className="empty-state">
           <h3>No sessions yet</h3>
@@ -231,7 +220,6 @@ export default function PublicView({
         <div className="sessions-grid">
           {sessions.map((session) => {
             const mine = pickedFor(session.key);
-            const taken = session.total - session.available;
             const pct = session.total ? (session.available / session.total) * 100 : 0;
             const isFull = session.available === 0;
             const fillClass = isFull ? 'none' : pct <= 25 ? 'low' : '';
@@ -268,7 +256,6 @@ export default function PublicView({
                     <span>
                       {session.available} of {session.total} available
                     </span>
-                    <span>{taken} spoken for</span>
                   </div>
                 </div>
 
@@ -296,7 +283,7 @@ export default function PublicView({
                   </div>
                 )}
 
-                <div className="ticket-chips">
+                <div className="ticket-chips" ref={fitLabels}>
                   {session.tickets.length === 0 ? (
                     <span className="ticket-empty" style={{ gridColumn: '1 / -1' }}>
                       Every ticket has been claimed
