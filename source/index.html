@@ -17,6 +17,26 @@
     />
   </head>
   <body>
+    <script>
+      // Applies the theme before anything paints, so a light-mode visitor never
+      // sees a flash of the dark palette while the bundle loads. React keeps
+      // this class in sync afterwards. Key must match THEME_KEY in App.tsx.
+      (function () {
+        try {
+          var stored = localStorage.getItem('gc_tickets_theme');
+          var theme =
+            stored === 'light' || stored === 'dark'
+              ? stored
+              : window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light';
+          if (theme === 'light') document.body.classList.add('light-theme');
+          document.documentElement.setAttribute('data-theme', theme);
+        } catch (e) {
+          document.body.classList.add('light-theme');
+        }
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

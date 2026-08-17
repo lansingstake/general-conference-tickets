@@ -1344,6 +1344,8 @@ body.light-theme {
   --bg-gradient: radial-gradient(circle at 50% 0%, #e0e7ff 0%, #f9fafb 70%);
   color: #1f2937;
   background-color: #f9fafb;
+  /* Native scrollbars, dropdowns and form controls follow the theme too. */
+  color-scheme: light;
 
   --primary: #4f46e5;
   --primary-hover: #4338ca;

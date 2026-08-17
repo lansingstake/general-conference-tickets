@@ -18,6 +18,21 @@ function currentRoute(): 'public' | 'admin' {
   return window.location.hash.toLowerCase().startsWith('#admin') ? 'admin' : 'public';
 }
 
+const prefersDark = () =>
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+/**
+ * Light by default. Someone who has picked a theme in the app keeps it; anyone
+ * else follows their operating system, which only overrides to dark when the OS
+ * itself is set to dark.
+ */
+function initialTheme(): 'light' | 'dark' {
+  const stored = localStorage.getItem(THEME_KEY);
+  if (stored === 'light' || stored === 'dark') return stored;
+  return prefersDark() ? 'dark' : 'light';
+}
+
 export default function App() {
   const [route, setRoute] = useState<'public' | 'admin'>(currentRoute);
   const [scriptUrl, setScriptUrl] = useState<string>(getScriptUrl);
@@ -32,10 +47,7 @@ export default function App() {
   const [autoRefresh, setAutoRefresh] = useState<boolean>(
     () => localStorage.getItem(AUTO_REFRESH_KEY) !== 'off'
   );
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    const stored = localStorage.getItem(THEME_KEY);
-    return stored === 'light' ? 'light' : 'dark';
-  });
+  const [theme, setTheme] = useState<'light' | 'dark'>(initialTheme);
 
   // The sheet decides the cadence; a ref keeps the polling loop from restarting
   // every time a fetch lands with the same value.
@@ -44,8 +56,29 @@ export default function App() {
   useEffect(() => {
     document.body.classList.toggle('light-theme', theme === 'light');
     document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
+
+  /**
+   * Only an explicit tap on the theme button is remembered. Persisting the
+   * auto-detected value instead would freeze the very first visit's OS setting
+   * in place, so a later switch to dark mode would never be picked up.
+   */
+  const chooseTheme = useCallback((next: 'light' | 'dark') => {
+    localStorage.setItem(THEME_KEY, next);
+    setTheme(next);
+  }, []);
+
+  // Follow the OS while the visitor has no preference of their own.
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const query = window.matchMedia('(prefers-color-scheme: dark)');
+    const onChange = (e: MediaQueryListEvent) => {
+      if (localStorage.getItem(THEME_KEY)) return;
+      setTheme(e.matches ? 'dark' : 'light');
+    };
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, []);
 
   useEffect(() => {
     document.body.classList.toggle('admin-mode', route === 'admin');
@@ -187,7 +220,7 @@ export default function App() {
     return (
       <>
         {toastBar}
-        <AdminView scriptUrl={scriptUrl} addToast={addToast} theme={theme} setTheme={setTheme} />
+        <AdminView scriptUrl={scriptUrl} addToast={addToast} theme={theme} setTheme={chooseTheme} />
       </>
     );
   }
@@ -238,7 +271,7 @@ export default function App() {
         autoRefresh={autoRefresh}
         setAutoRefresh={setAutoRefresh}
         theme={theme}
-        setTheme={setTheme}
+        setTheme={chooseTheme}
         loadError={loadError}
       />
     </>
