@@ -31,12 +31,22 @@ jobs:
         run: npm ci
         working-directory: source
 
+      # The Apps Script URL comes from source/.env.production. Do not set
+      # VITE_APPS_SCRIPT_URL here: an unset repo secret expands to an empty
+      # string, and an empty env var shadows the .env file, which ships a build
+      # that asks every visitor to paste in the URL.
       - name: Build
         run: npm run build
         working-directory: source
-        env:
-          # Optional override. Without it the committed .env.production is used.
-          VITE_APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}
+
+      - name: Fail if the script URL was not baked in
+        working-directory: source
+        run: |
+          if ! grep -rq "script.google.com/macros" dist/assets/*.js; then
+            echo "::error::Built bundle has no Apps Script URL — check source/.env.production"
+            exit 1
+          fi
+          echo "Apps Script URL is present in the bundle."
 
       - uses: actions/upload-pages-artifact@v3
         with:
