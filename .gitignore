@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.local
+.env
+.env.local
+
+# Source material from the old Google Form — contains real member names,
+# email addresses and phone numbers. Never publish these.
+*.xlsx
+*.csv
+Google Form.pdf
+
+# Local tooling
+.claude/

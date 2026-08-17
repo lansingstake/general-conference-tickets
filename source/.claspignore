@@ -1,0 +1,7 @@
+# Ignore everything, then allow only the two files that belong in Apps Script.
+# Without this, clasp would try to push the React source, vite config and
+# node_modules into the script project.
+**/**
+
+!AppsScript.js
+!appsscript.json
