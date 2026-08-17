@@ -143,15 +143,21 @@ npm run dev
 Without the env var the app shows a one-time "Connect to your spreadsheet" screen and
 remembers the URL in that browser only — fine for testing, not for real users.
 
-## 4. Publish to GitHub Pages
+## 4. Publishing
 
-```bash
-npm run build
-```
+**Live at <https://lansingstake.github.io/general-conference-tickets/>**
 
-`vite.config.ts` uses `base: './'`, so `dist/` works at a repo subpath or a domain root
-with no further changes. Publish `dist/` however you like — a `gh-pages` branch, a
-`docs/` folder on `main`, or a GitHub Action.
+Pushing to `main` rebuilds and redeploys automatically via
+`.github/workflows/deploy.yml`. There is nothing to run by hand.
+
+The Apps Script endpoint is baked in from `source/.env.production`, which is committed on
+purpose — the URL is visible in the deployed page source either way, and the admin screen
+is protected by the **Admin Passcode**, not by that URL being secret.
+
+> Do **not** add a `VITE_APPS_SCRIPT_URL` env var to the workflow. An unset repo secret
+> expands to an empty string, and an empty env var overrides `.env` files in Vite, which
+> ships a build that asks every visitor to paste in the URL. The workflow now asserts the
+> URL is present in the bundle and fails the build if it isn't.
 
 ---
 
@@ -166,13 +172,13 @@ written — existing rows stay put.
 
 | Link | Opens |
 | --- | --- |
-| `https://your-site/` | The normal request page |
-| `https://your-site/#return` | Straight to the give-back form — this is what the confirmation email's button uses |
-| `https://your-site/#admin` | The admin screen |
+| <https://lansingstake.github.io/general-conference-tickets/> | The normal request page |
+| …`/#return` | Straight to the give-back form — the confirmation email's button |
+| …`/#admin` | The admin screen |
 
 ## Admin screen
 
-Visit the site with `#admin` on the end: `https://your-site/#admin`
+Visit the site with `#admin` on the end.
 
 - **Tickets** — every ticket in the grid, its status, and who holds it. Filter by session
   or status, search any field, export CSV.

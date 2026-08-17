@@ -35,7 +35,10 @@ notifications, and the "paste your Apps Script URL" setup screen.
    `Admin Passcode` setting exists and is blank by default; the admin screen displays a
    standing warning while unlocked.
 4. **Hosting: GitHub Pages**, same as Temple Day. `vite.config.ts` uses `base: './'` so
-   the build works at a repo subpath. Repo not yet created.
+   the build works at a repo subpath.
+   Repo <https://github.com/lansingstake/general-conference-tickets> (public),
+   live at <https://lansingstake.github.io/general-conference-tickets/>.
+   Pushing to `main` redeploys via `.github/workflows/deploy.yml`.
 
 ## Architecture
 - **Frontend:** React 18 + TypeScript + Vite, custom CSS, `lucide-react` icons.
@@ -169,6 +172,21 @@ column on the right and is called before every write, so a sheet created by an o
 version upgrades itself — no manual `setupSpreadsheet()` run needed. Verified live: the
 Ward column was appended at position 13 and pre-existing rows kept their Status/Notes
 alignment.
+
+## Publishing (2026-08-17)
+Public repo `lansingstake/general-conference-tickets`, GitHub Pages built by Actions.
+`gh` CLI installed via winget; the owner authenticated once with `gh auth login`.
+
+The old Form Responses `.xlsx` and the form PDF are **gitignored** — they contain real
+member names, emails and phone numbers and must never reach a public repo.
+
+**Bug shipped and fixed in the first deploy:** the workflow set
+`VITE_APPS_SCRIPT_URL: ${{ secrets.APPS_SCRIPT_URL }}` from a secret that was never
+created. An unset secret expands to an empty string, and an empty env var takes precedence
+over `.env` files in Vite, so the first live build had no endpoint and showed every visitor
+the "Connect to your spreadsheet" setup screen. Fixed by removing the override and letting
+committed `source/.env.production` be the single source, plus a CI step that greps the
+built bundle for the URL and fails the build if it is missing.
 
 ## Known gaps / possible follow-ups
 - **Assigning a returned ticket to someone on the wait list** is manual: email them, then
