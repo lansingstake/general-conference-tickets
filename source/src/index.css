@@ -181,31 +181,37 @@ h1, h2, h3, h4 {
 /* ----------------------------------------------------------------- notices */
 
 .guidelines-card {
+  max-width: 620px;
+  margin: 0 auto 1.5rem;
   background: var(--card-bg);
   backdrop-filter: blur(16px);
   border: 1px solid var(--card-border);
-  border-radius: 18px;
-  padding: 1.5rem 1.75rem;
-  margin-bottom: 1.75rem;
+  border-radius: 16px;
+  padding: 1rem 1.35rem;
+  text-align: center;
 }
 
 .guidelines-card h3 {
-  font-size: 1.05rem;
-  margin-bottom: 0.6rem;
+  font-size: 0.95rem;
+  margin-bottom: 0.4rem;
   color: var(--text-primary);
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  justify-content: center;
+  gap: 0.45rem;
 }
 
+/* Bullets stay left-aligned for readability, but the block itself is centred. */
 .guidelines-card ul {
+  display: inline-block;
+  text-align: left;
   margin: 0;
-  padding-left: 1.25rem;
+  padding-left: 1.1rem;
   color: var(--text-secondary);
-  font-size: 0.95rem;
+  font-size: 0.85rem;
 }
 
-.guidelines-card li { margin-bottom: 0.3rem; }
+.guidelines-card li { margin-bottom: 0.2rem; }
 
 .notice-banner {
   background: rgba(99, 102, 241, 0.08);
@@ -365,9 +371,11 @@ h1, h2, h3, h4 {
   gap: 1.5rem;
 }
 
+/* Narrow enough that the seat list reads as a single column. The row stays
+   centred, so the cards sit together in the middle rather than stretching to
+   the full page width. */
 .session-card {
-  flex: 1 1 480px;
-  max-width: 660px;
+  flex: 0 1 360px;
   background: var(--card-bg);
   backdrop-filter: blur(16px);
   border: 1px solid var(--card-border);
@@ -460,11 +468,12 @@ h1, h2, h3, h4 {
    however long or short the individual labels are. */
 /* Bubbles size to their own text and wrap, centred. Font size lives here rather
    than on the chip so the auto-fit pass can shrink a whole session at once. */
+/* One seat per row, so the eye travels in a single direction down the list
+   regardless of how short or long the labels are. */
 .ticket-chips {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-content: flex-start;
+  flex-direction: column;
+  align-items: center;
   gap: 0.45rem;
   font-size: 0.875rem;
   background: var(--inset-bg);
