@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -6,6 +6,7 @@ import {
   Download,
   ExternalLink,
   History,
+  Loader2,
   Lock,
   Mail,
   Moon,
@@ -23,6 +24,22 @@ import { ApiError, fetchAdmin, post } from '../api';
 import type { AdminPayload, Reservation, ToastMessage } from '../types';
 
 const PASSCODE_KEY = 'gc_tickets_admin_passcode';
+
+function readStoredPasscode(): string {
+  try {
+    return sessionStorage.getItem(PASSCODE_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+function storePasscode(code: string) {
+  try {
+    sessionStorage.setItem(PASSCODE_KEY, code);
+  } catch {
+    /* the admin just types it again next visit */
+  }
+}
 
 type Tab = 'tickets' | 'requests' | 'waitlist' | 'log';
 
@@ -80,9 +97,14 @@ function downloadCsv(filename: string, rows: string[][]) {
 }
 
 export default function AdminView({ scriptUrl, addToast, theme, setTheme }: Props) {
-  const [passcode, setPasscode] = useState(() => sessionStorage.getItem(PASSCODE_KEY) || '');
+  // A ref rather than state: requests always read the current code, and a
+  // successful unlock doesn't re-run the initial load effect for a second fetch.
+  const passcodeRef = useRef(readStoredPasscode());
   const [passcodeDraft, setPasscodeDraft] = useState('');
   const [needsPasscode, setNeedsPasscode] = useState(false);
+  const [unlocking, setUnlocking] = useState(false);
+  const [authError, setAuthError] = useState('');
+  const passcodeInput = useRef<HTMLInputElement>(null);
 
   const [data, setData] = useState<AdminPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -99,7 +121,7 @@ export default function AdminView({ scriptUrl, addToast, theme, setTheme }: Prop
     async (quiet = false) => {
       if (!quiet) setLoading(true);
       try {
-        const payload = await fetchAdmin(scriptUrl, passcode);
+        const payload = await fetchAdmin(scriptUrl, passcodeRef.current);
         setData(payload);
         setNeedsPasscode(false);
         setError('');
@@ -113,12 +135,63 @@ export default function AdminView({ scriptUrl, addToast, theme, setTheme }: Prop
         setLoading(false);
       }
     },
-    [scriptUrl, passcode]
+    [scriptUrl]
   );
 
   useEffect(() => {
     load();
   }, [load]);
+
+  /**
+   * Checks the typed code directly instead of setting state and waiting for an
+   * effect to refetch. Setting state to the value it already holds is a no-op in
+   * React, so under the old approach re-entering the same code after a miss sent
+   * no request at all. Doing it here also lets the screen show progress and a
+   * clear result.
+   */
+  // Set synchronously. State alone isn't enough: two triggers in the same tick
+  // (the Enter handler and a form submit) would both read the old value and
+  // send two requests.
+  const unlockingRef = useRef(false);
+
+  const attemptUnlock = async () => {
+    if (unlockingRef.current) return;
+    const code = passcodeDraft.trim();
+    if (!code) {
+      setAuthError('Enter the passcode first.');
+      passcodeInput.current?.focus();
+      return;
+    }
+    unlockingRef.current = true;
+    setUnlocking(true);
+    setAuthError('');
+    try {
+      const payload = await fetchAdmin(scriptUrl, code);
+      passcodeRef.current = code;
+      storePasscode(code);
+      setData(payload);
+      setError('');
+      setNeedsPasscode(false);
+    } catch (err) {
+      setAuthError(
+        err instanceof ApiError && err.code === 'auth'
+          ? "That passcode didn't match. Check the General Info tab and try again."
+          : err instanceof ApiError
+          ? err.message
+          : String(err)
+      );
+      // Select the failed attempt so typing again replaces it.
+      requestAnimationFrame(() => passcodeInput.current?.select());
+    } finally {
+      unlockingRef.current = false;
+      setUnlocking(false);
+    }
+  };
+
+  const onUnlockSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    attemptUnlock();
+  };
 
   /* ------------------------------------------------------------ derived */
 
@@ -254,7 +327,7 @@ export default function AdminView({ scriptUrl, addToast, theme, setTheme }: Prop
   const runAdmin = async (payload: Record<string, unknown>, successFallback: string) => {
     setBusy(true);
     try {
-      const res = await post<{ message: string }>(scriptUrl, { action: 'admin', passcode, ...payload });
+      const res = await post<{ message: string }>(scriptUrl, { action: 'admin', passcode: passcodeRef.current, ...payload });
       addToast('success', res.message || successFallback);
       setPicked([]);
       await load(true);
@@ -336,24 +409,57 @@ export default function AdminView({ scriptUrl, addToast, theme, setTheme }: Prop
         <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: '0.92rem' }}>
           Enter the passcode from the <strong>General Info</strong> tab.
         </p>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            sessionStorage.setItem(PASSCODE_KEY, passcodeDraft.trim());
-            setPasscode(passcodeDraft.trim());
-          }}
-          style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
-        >
+        <form onSubmit={onUnlockSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <input
+            ref={passcodeInput}
             type="password"
-            className="input-text"
+            className={`input-text${authError ? ' error' : ''}`}
             value={passcodeDraft}
-            onChange={(e) => setPasscodeDraft(e.target.value)}
+            onChange={(e) => {
+              setPasscodeDraft(e.target.value);
+              if (authError) setAuthError('');
+            }}
+            // readOnly rather than disabled, so the field keeps focus and can be
+            // re-selected straight away if the code is wrong.
+            readOnly={unlocking}
+            onKeyDown={(e) => {
+              // Handle Enter here rather than relying on the browser's implicit
+              // form submission. preventDefault cancels that built-in submit, so
+              // one keypress can never send two requests.
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                attemptUnlock();
+              }
+            }}
             autoFocus
+            autoComplete="current-password"
+            enterKeyHint="go"
+            aria-label="Admin passcode"
+            aria-invalid={!!authError}
+            aria-describedby="passcode-status"
           />
-          <button type="submit" className="btn btn-primary">
-            Unlock
+          <button type="submit" className="btn btn-primary" disabled={unlocking}>
+            {unlocking ? (
+              <>
+                <Loader2 size={16} className="spin-icon" /> Unlocking…
+              </>
+            ) : (
+              'Unlock'
+            )}
           </button>
+          <div id="passcode-status" aria-live="polite" style={{ minHeight: '1.25rem' }}>
+            {unlocking && (
+              <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                Checking your passcode — this can take a few seconds.
+              </span>
+            )}
+            {!unlocking && authError && (
+              <div className="warning-label" style={{ textAlign: 'left' }}>
+                <AlertTriangle size={16} />
+                <span>{authError}</span>
+              </div>
+            )}
+          </div>
         </form>
         <a href="#" className="chip-btn" style={{ alignSelf: 'center' }}>
           <ArrowLeft size={12} /> Back to the public page
