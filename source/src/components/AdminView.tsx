@@ -120,12 +120,19 @@ export default function AdminView({ scriptUrl, addToast, theme, setTheme }: Prop
   const load = useCallback(
     async (quiet = false) => {
       if (!quiet) setLoading(true);
+      // Remember which code this request went out with. If an unlock replaces
+      // the code while it's in flight, its answer is out of date and must not
+      // undo the newer result — e.g. a slow startup check arriving after you've
+      // already unlocked and flipping you back to the passcode screen.
+      const code = passcodeRef.current;
       try {
-        const payload = await fetchAdmin(scriptUrl, passcodeRef.current);
+        const payload = await fetchAdmin(scriptUrl, code);
+        if (code !== passcodeRef.current) return;
         setData(payload);
         setNeedsPasscode(false);
         setError('');
       } catch (err) {
+        if (code !== passcodeRef.current) return;
         if (err instanceof ApiError && err.code === 'auth') {
           setNeedsPasscode(true);
         } else {
@@ -266,6 +273,8 @@ export default function AdminView({ scriptUrl, addToast, theme, setTheme }: Prop
         statuses: Set<string>;
         rows: number[];
         tickets: string[];
+        /** Each ticket with its own status, so returned ones can be shown as such. */
+        items: { ticket: string; status: string; held: boolean }[];
       }
     >();
 
@@ -287,12 +296,15 @@ export default function AdminView({ scriptUrl, addToast, theme, setTheme }: Prop
           statuses: new Set(),
           rows: [],
           tickets: [],
+          items: [],
         };
         map.set(key, g);
       }
       g.statuses.add(r.status || 'Requested');
       g.rows.push(r.row);
       g.tickets.push(r.ticket);
+      const status = r.status || 'Requested';
+      g.items.push({ ticket: r.ticket, status, held: isHeld(status) });
     });
 
     const term = search.trim().toLowerCase();
@@ -851,7 +863,28 @@ export default function AdminView({ scriptUrl, addToast, theme, setTheme }: Prop
                         )}
                       </div>
                       <div className="cell-muted" style={{ maxWidth: 260 }}>
-                        {g.tickets.join(', ')}
+                        {g.items.map((item, i) => {
+                          // Only mark tickets when the row is a mix. A row where
+                          // every ticket is gone is already clear from its status.
+                          const struck =
+                            !item.held && heldRows.length > 0 && heldRows.length < g.items.length;
+                          return (
+                            <span key={`${item.ticket}-${i}`}>
+                              {i > 0 && ', '}
+                              {struck ? (
+                                <span
+                                  className="ticket-returned"
+                                  title={`${item.status} — no longer held`}
+                                >
+                                  {item.ticket}
+                                  <span className="sr-only"> ({item.status.toLowerCase()})</span>
+                                </span>
+                              ) : (
+                                item.ticket
+                              )}
+                            </span>
+                          );
+                        })}
                       </div>
                     </td>
                     <td>

@@ -1271,6 +1271,27 @@ table.data-table tr.selected td { background: rgba(99, 102, 241, 0.09); }
   color: var(--text-primary);
 }
 .cell-muted { color: var(--text-muted); font-size: 0.82rem; }
+
+/* A ticket the member gave back, shown inside a row that still holds others. */
+.ticket-returned {
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+  color: var(--text-muted);
+  opacity: 0.75;
+}
+
+/* Present for screen readers, invisible on screen. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 .cell-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; }
 .cell-contact a { color: #a5b4fc; text-decoration: none; }
 .cell-contact a:hover { text-decoration: underline; }
