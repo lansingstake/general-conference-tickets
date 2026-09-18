@@ -68,6 +68,9 @@ const isHeld = (status: string) => !FREED.includes(status.trim().toLowerCase());
 function matchesStatus(status: string, filter: string): boolean {
   const s = status.trim().toLowerCase();
   if (filter === 'returned') return s === 'returned' || s === 'released';
+  // Still owed to someone: a ticket they hold that you haven't forwarded yet.
+  // Excludes unclaimed tickets and anything given back or declined.
+  if (filter === 'unfilled') return s !== 'available' && s !== 'forwarded' && !FREED.includes(s);
   return s === filter;
 }
 
@@ -628,6 +631,7 @@ export default function AdminView({ scriptUrl, addToast, theme, setTheme }: Prop
         {(tab === 'tickets' || tab === 'requests') && (
           <select className="input-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="all">Any status</option>
+            <option value="unfilled">Unfilled requests</option>
             <option value="available">Available</option>
             <option value="requested">Requested</option>
             <option value="forwarded">Forwarded</option>
