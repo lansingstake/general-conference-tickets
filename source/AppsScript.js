@@ -59,7 +59,7 @@ var CONFIG_SCHEMA = [
   { label: 'Support Email',              key: 'supportEmail',          type: 'text', def: 'LansingStake@gmail.com' },
   { label: 'App URL',                    key: 'appUrl',                type: 'text', def: '' },
   { label: 'How To Video URL',           key: 'howToVideoUrl',         type: 'text', def: '' },
-  { label: 'Refresh Interval Seconds',   key: 'refreshIntervalSeconds',type: 'int',  def: 30 },
+  { label: 'Refresh Interval Minutes',   key: 'refreshIntervalMinutes',type: 'number', def: 2, altSeconds: 'Refresh Interval Seconds' },
   { label: 'Max Tickets Per Person',     key: 'maxTicketsPerPerson',   type: 'int',  def: 5 },
   { label: 'Requests Open',              key: 'requestsOpen',          type: 'bool', def: true },
   { label: 'Closed Message',             key: 'closedMessage',         type: 'text', def: 'Ticket requests are closed right now. Please check back later.' },
@@ -132,6 +132,8 @@ function setupSpreadsheet() {
     created.push(CONFIG_SHEET);
   }
 
+  migrateIntervalToMinutes_(cfgSheet);
+
   var existing = {};
   var lastRow = cfgSheet.getLastRow();
   if (lastRow > 1) {
@@ -165,7 +167,7 @@ var CONFIG_HELP = {
   supportEmail: 'Shown to people who need help. Also the "give tickets back" contact.',
   appUrl: 'Public web address of this app. Turns the "Return my tickets" button in confirmation emails into a working link. Leave blank and the email just describes where to go.',
   howToVideoUrl: 'Optional link to a how-to video. Leave blank to hide the button.',
-  refreshIntervalSeconds: 'How often the page re-checks for taken tickets. 0 turns auto-refresh off.',
+  refreshIntervalMinutes: 'How often the page re-checks for taken tickets, in minutes. Decimals are fine — 0.5 is thirty seconds. 0 turns auto-refresh off.',
   maxTicketsPerPerson: 'Most tickets one email address may hold at once, across every session.',
   requestsOpen: 'FALSE hides all request buttons and shows the Closed Message instead.',
   closedMessage: 'Shown when Requests Open is FALSE.',
@@ -180,6 +182,32 @@ var CONFIG_HELP = {
   replyToEmail: 'Reply-to address on emails sent to requesters.',
   adminPasscode: 'Leave blank for no passcode. Fill it in to require a code on the admin screen.'
 };
+
+/**
+ * Renames the old seconds-based interval row to minutes and converts its value,
+ * so a sheet set up before the change keeps the cadence it already had. Does
+ * nothing once a minutes row exists.
+ */
+function migrateIntervalToMinutes_(cfgSheet) {
+  var lastRow = cfgSheet.getLastRow();
+  if (lastRow < 2) return;
+  var labels = cfgSheet.getRange(2, 1, lastRow - 1, 1).getDisplayValues();
+  var secondsRow = 0;
+  for (var i = 0; i < labels.length; i++) {
+    var label = norm_(labels[i][0]);
+    if (label === norm_('Refresh Interval Minutes')) return;
+    if (label === norm_('Refresh Interval Seconds')) secondsRow = i + 2;
+  }
+  if (!secondsRow) return;
+
+  var raw = String(cfgSheet.getRange(secondsRow, 2).getDisplayValue()).replace(/[^0-9.\-]/g, '');
+  var seconds = parseFloat(raw);
+  var minutes = isNaN(seconds) || seconds < 0 ? 2 : Math.round((seconds / 60) * 100) / 100;
+
+  cfgSheet.getRange(secondsRow, 1).setValue('Refresh Interval Minutes');
+  cfgSheet.getRange(secondsRow, 2).setValue(minutes);
+  cfgSheet.getRange(secondsRow, 3).setValue(CONFIG_HELP.refreshIntervalMinutes || '');
+}
 
 function ensureSheet_(wb, name, headers) {
   var sheet = wb.getSheetByName(name);
@@ -276,11 +304,23 @@ function getConfig_() {
   CONFIG_SCHEMA.forEach(function (item) {
     var val = raw[norm_(item.label)];
     if ((val === undefined || String(val).trim() === '') && item.alt) val = raw[norm_(item.alt)];
+    // This setting used to be stored in seconds under a different label. A sheet
+    // that still has the old row is converted on read, so 120 stays two minutes
+    // rather than being taken as two hours.
+    var fromSeconds = false;
+    if ((val === undefined || String(val).trim() === '') && item.altSeconds) {
+      val = raw[norm_(item.altSeconds)];
+      fromSeconds = val !== undefined && String(val).trim() !== '';
+    }
     var parsed;
     if (val === undefined || String(val).trim() === '') {
       parsed = item.def;
     } else if (item.type === 'bool') {
       parsed = toBool_(val);
+    } else if (item.type === 'number') {
+      var f = parseFloat(String(val).replace(/[^0-9.\-]/g, ''));
+      if (isNaN(f) || f < 0) parsed = item.def;
+      else parsed = fromSeconds ? Math.round((f / 60) * 100) / 100 : f;
     } else if (item.type === 'int') {
       var n = parseInt(String(val).replace(/[^0-9-]/g, ''), 10);
       parsed = isNaN(n) || n < 0 ? item.def : n;
@@ -290,6 +330,11 @@ function getConfig_() {
     if (item.private) priv[item.key] = parsed;
     else pub[item.key] = parsed;
   });
+
+  // Older builds of the web app, including any still cached in someone's
+  // browser, read the interval in seconds. Keep publishing that so they carry
+  // on refreshing until they pick up the current bundle.
+  pub.refreshIntervalSeconds = Math.round((pub.refreshIntervalMinutes || 0) * 60);
 
   pub.sheetUrl = wb.getUrl();
   return { pub: pub, _private: priv };

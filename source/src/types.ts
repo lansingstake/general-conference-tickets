@@ -7,7 +7,7 @@ export interface AppConfig {
   supportEmail: string;
   appUrl: string;
   howToVideoUrl: string;
-  refreshIntervalSeconds: number;
+  refreshIntervalMinutes: number;
   maxTicketsPerPerson: number;
   requestsOpen: boolean;
   closedMessage: string;

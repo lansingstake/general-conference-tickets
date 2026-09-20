@@ -109,8 +109,8 @@ export default function App() {
         const payload = await fetchPublic(scriptUrl);
         setData(payload);
         setLoadError('');
-        const seconds = payload.config?.refreshIntervalSeconds;
-        if (typeof seconds === 'number') intervalRef.current = seconds * 1000;
+        const minutes = payload.config?.refreshIntervalMinutes;
+        if (typeof minutes === 'number') intervalRef.current = minutes * 60000;
       } catch (err) {
         const message = err instanceof ApiError ? err.message : String(err);
         setLoadError(message);

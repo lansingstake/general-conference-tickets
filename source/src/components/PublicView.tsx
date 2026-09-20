@@ -32,13 +32,15 @@ interface Props {
   loadError: string;
 }
 
-function describeInterval(seconds: number): string {
-  if (!seconds) return '';
+/** Takes minutes, as stored in the sheet, and phrases it for readers. */
+function describeInterval(minutes: number): string {
+  if (!minutes) return '';
+  const seconds = Math.round(minutes * 60);
   if (seconds < 60) return `every ${seconds} seconds`;
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
-  const minutes = `${m} minute${m === 1 ? '' : 's'}`;
-  return s ? `every ${minutes} and ${s} seconds` : `every ${minutes}`;
+  const label = `${m} minute${m === 1 ? '' : 's'}`;
+  return s ? `every ${label} and ${s} seconds` : `every ${label}`;
 }
 
 export default function PublicView({
@@ -114,7 +116,7 @@ export default function PublicView({
     .map((l) => l.replace(/^[-•*]\s*/, '').trim())
     .filter(Boolean);
 
-  const intervalNote = describeInterval(config.refreshIntervalSeconds);
+  const intervalNote = describeInterval(config.refreshIntervalMinutes);
   const totalAvailable = sessions.reduce((sum, s) => sum + s.available, 0);
 
   return (

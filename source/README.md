@@ -67,7 +67,7 @@ Read by the label in column A, so you can reorder or insert rows safely.
 | Support Email | LansingStake@gmail.com | Shown to people needing help |
 | App URL | *(blank)* | Public address of this app. Makes the "Return my tickets" button in confirmation emails a real link |
 | How To Video URL | *(blank)* | Blank hides the button |
-| Refresh Interval Seconds | 30 | `0` turns auto-refresh off for everyone |
+| Refresh Interval Minutes | 2 | Minutes between checks; decimals are fine (`0.5` = 30 seconds). `0` turns auto-refresh off for everyone |
 | Max Tickets Per Person | 5 | Total held per email address, across all sessions |
 | Requests Open | TRUE | `FALSE` hides request buttons, shows Closed Message |
 | Closed Message | … | Shown when Requests Open is FALSE |
