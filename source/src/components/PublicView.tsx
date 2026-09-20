@@ -117,6 +117,10 @@ export default function PublicView({
     .filter(Boolean);
 
   const intervalNote = describeInterval(config.refreshIntervalMinutes);
+  // 0 in the spreadsheet switches auto-refresh off for everyone, whichever way
+  // an individual visitor has set their own toggle.
+  const refreshDisabledBySheet = !config.refreshIntervalMinutes;
+  const refreshActive = autoRefresh && !refreshDisabledBySheet;
   const totalAvailable = sessions.reduce((sum, s) => sum + s.available, 0);
 
   return (
@@ -128,16 +132,19 @@ export default function PublicView({
 
         <div className="header-controls">
           <button
-            className={`chip-btn ${autoRefresh ? 'on' : 'off'}`}
+            className={`chip-btn ${refreshActive ? 'on' : 'off'}`}
             onClick={() => setAutoRefresh(!autoRefresh)}
+            disabled={refreshDisabledBySheet}
             title={
-              autoRefresh
+              refreshDisabledBySheet
+                ? 'Auto-refresh is switched off in the spreadsheet'
+                : refreshActive
                 ? 'Auto-refresh is on — the page updates itself as tickets are taken'
                 : 'Auto-refresh is off'
             }
           >
-            {autoRefresh ? <Play size={12} /> : <Pause size={12} />}
-            Auto-refresh {autoRefresh ? 'on' : 'off'}
+            {refreshActive ? <Play size={12} /> : <Pause size={12} />}
+            Auto-refresh {refreshActive ? 'on' : 'off'}
           </button>
           <button className="chip-btn" onClick={reload}>
             <RefreshCw size={12} /> Refresh now
@@ -153,12 +160,11 @@ export default function PublicView({
           )}
         </div>
 
-        {autoRefresh && intervalNote && (
-          <div className="refresh-note">This page checks for taken tickets {intervalNote}.</div>
-        )}
-        {autoRefresh && !intervalNote && (
+        {refreshDisabledBySheet ? (
           <div className="refresh-note">Auto-refresh is switched off in the spreadsheet.</div>
-        )}
+        ) : autoRefresh && intervalNote ? (
+          <div className="refresh-note">This page checks for taken tickets {intervalNote}.</div>
+        ) : null}
       </header>
 
       {loadError && (
