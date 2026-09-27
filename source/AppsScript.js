@@ -998,6 +998,97 @@ function handleAdmin_(data, cfg) {
       return { status: 'ok', message: wTouched + ' wait list entr(y/ies) set to ' + wStatus + '.' };
     }
 
+    /* Hands tickets to someone on the wait list. Availability is re-checked
+     * inside the same lock a public request uses, so two admins — or an admin
+     * and a member — cannot both claim the same seat. The per-person cap is
+     * deliberately not applied: this is a considered decision, not self-service. */
+    if (op === 'reserveFor') {
+      var aSessions = parseSessions_();
+      var aReservations = readReservations_();
+      var aKey = sessionKeyFor_(aSessions, data.session, data.sessionTime);
+      var aSession = aSessions.filter(function (s) { return s.key === aKey; })[0];
+      if (!aSession) return { status: 'error', message: 'Session not found: ' + data.session };
+
+      var aWanted = (data.tickets || []).map(function (t) { return String(t).trim(); }).filter(String);
+      if (!aWanted.length) return { status: 'error', message: 'Choose at least one ticket.' };
+
+      var aFirst = String(data.firstName || '').trim();
+      var aLast = String(data.lastName || '').trim();
+      var aEmail = String(data.email || '').trim();
+      if (!aFirst && !aLast) return { status: 'error', message: 'Missing the name to assign these to.' };
+
+      var aHeld = heldTickets_(aSessions, aReservations);
+      var aValid = {};
+      aSession.tickets.forEach(function (t) { aValid[norm_(t.label)] = t.label; });
+
+      var aTaken = [], aUnknown = [];
+      aWanted.forEach(function (label) {
+        var canonical = aValid[norm_(label)];
+        if (!canonical) { aUnknown.push(label); return; }
+        if (aHeld[ticketKey_(aSession.key, canonical)]) aTaken.push(canonical);
+      });
+      if (aUnknown.length) {
+        return { status: 'error', code: 'stale', message: 'No longer listed: ' + aUnknown.join(', ') + '. Refresh and try again.' };
+      }
+      if (aTaken.length) {
+        return { status: 'error', code: 'taken', message: 'Already taken: ' + aTaken.join(', ') + '. Refresh and pick different seats.' };
+      }
+
+      var assignStatus = data.markForwarded === true ? 'Forwarded' : 'Requested';
+      var aRequestId = data.clientToken || Utilities.getUuid();
+      var aSheet = wb.getSheetByName(RESV_SHEET);
+      var aHm = ensureHeaders_(aSheet, RESV_HEADERS);
+      var aList = aWanted.map(function (l) { return aValid[norm_(l)]; });
+      var aRows = aList.map(function (label) {
+        return rowFor_(aHm, {
+          'Timestamp': stamp, 'Request ID': aRequestId,
+          'Session': aSession.name, 'Session Time': aSession.time, 'Ticket': label,
+          'First Name': aFirst, 'Last Name': aLast, 'Email': aEmail,
+          'Phone': String(data.phone || '').trim(), 'Ward / Branch': String(data.ward || '').trim(),
+          'Status': assignStatus, 'Notes': String(data.notes || 'Assigned from the wait list').trim(),
+          'Last Updated': stamp
+        });
+      });
+      aSheet.getRange(aSheet.getLastRow() + 1, 1, aRows.length, aHm.lastCol).setValues(aRows);
+
+      // Close the wait list entry in the same locked operation, so the tickets
+      // and the entry can never disagree about whether it was dealt with.
+      var aWaitRow = Number(data.waitRow || 0);
+      if (aWaitRow > 1) {
+        var aWlSheet = wb.getSheetByName(WAIT_SHEET);
+        aWlSheet.getRange(aWaitRow, colOnSheet_(aWlSheet, 'Status')).setValue('Fulfilled');
+        aWlSheet.getRange(aWaitRow, colOnSheet_(aWlSheet, 'Last Updated')).setValue(stamp);
+      }
+      SpreadsheetApp.flush();
+
+      log_('Admin: Assigned', aFirst + ' ' + aLast, aEmail, aSession.name + ' - ' + aSession.time,
+           aList.join('; '),
+           aList.length + ' ticket(s) assigned from the wait list as ' + assignStatus + '.');
+
+      var aEmailed = false;
+      if (data.notify === true && cfg.pub.sendConfirmation && aEmail) {
+        aEmailed = sendMail_(aEmail, 'Your General Conference tickets — ' + aSession.name,
+          '<h2 style="margin:0 0 12px">Tickets are yours</h2>' +
+          '<p>Hi ' + escapeHtml_(aFirst) + ', tickets have opened up and these are now held for you:</p>' +
+          '<p style="font-size:16px"><strong>' + escapeHtml_(aSession.name) + '</strong>' +
+          (aSession.time ? ' &middot; ' + escapeHtml_(aSession.time) : '') + '</p>' +
+          '<table style="border-collapse:collapse;border:1px solid #e5e7eb;margin:8px 0 16px">' +
+          aList.map(function (t) {
+            return '<tr><td style="padding:6px 12px;border-bottom:1px solid #e5e7eb">' + escapeHtml_(t) + '</td></tr>';
+          }).join('') + '</table>' +
+          returnBlock_(cfg) +
+          '<p style="color:#6b7280;font-size:13px;margin:16px 0 0">Questions? Just reply to this email' +
+          (cfg.pub.supportEmail ? ' or write to ' + escapeHtml_(cfg.pub.supportEmail) : '') + '.</p>',
+          cfg);
+      }
+
+      return {
+        status: 'ok',
+        message: aList.length + ' ticket(s) assigned to ' + (aFirst + ' ' + aLast).trim() +
+                 (aEmailed ? ' and emailed to them.' : '.')
+      };
+    }
+
     return { status: 'error', message: 'Unknown admin operation: ' + op };
   } finally {
     lock.releaseLock();

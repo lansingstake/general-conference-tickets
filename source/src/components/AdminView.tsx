@@ -21,7 +21,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import { ApiError, fetchAdmin, post } from '../api';
-import type { AdminPayload, Reservation, ToastMessage } from '../types';
+import type { AdminPayload, AdminSession, Reservation, ToastMessage, WaitListEntry } from '../types';
+import FulfilWaitListModal from './FulfilWaitListModal';
 
 const PASSCODE_KEY = 'gc_tickets_admin_passcode';
 
@@ -119,6 +120,7 @@ export default function AdminView({ scriptUrl, addToast, theme, setTheme }: Prop
   const [sessionFilter, setSessionFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [picked, setPicked] = useState<number[]>([]);
+  const [fulfilFor, setFulfilFor] = useState<WaitListEntry | null>(null);
 
   const load = useCallback(
     async (quiet = false) => {
@@ -361,6 +363,36 @@ export default function AdminView({ scriptUrl, addToast, theme, setTheme }: Prop
 
   const setWaitStatus = (rows: number[], status: string) =>
     runAdmin({ op: 'setWaitStatus', rows, status }, 'Wait list updated.');
+
+  /** Books the chosen seats for a wait list entry and closes the entry, in one
+   *  locked operation, so the seats and the entry can never disagree. */
+  const assignFromWaitList = async (args: {
+    session: AdminSession;
+    tickets: string[];
+    notify: boolean;
+    markForwarded: boolean;
+  }) => {
+    if (!fulfilFor) return;
+    await runAdmin(
+      {
+        op: 'reserveFor',
+        waitRow: fulfilFor.row,
+        session: args.session.name,
+        sessionTime: args.session.time,
+        tickets: args.tickets,
+        firstName: fulfilFor.firstName,
+        lastName: fulfilFor.lastName,
+        email: fulfilFor.email,
+        phone: fulfilFor.phone,
+        ward: fulfilFor.ward,
+        notify: args.notify,
+        markForwarded: args.markForwarded,
+        notes: 'Assigned from the wait list (asked for ' + fulfilFor.ticketsWanted + ')',
+      },
+      'Tickets assigned.'
+    );
+    setFulfilFor(null);
+  };
 
   const togglePick = (row: number) =>
     setPicked((prev) => (prev.includes(row) ? prev.filter((r) => r !== row) : [...prev, row]));
@@ -1003,7 +1035,7 @@ export default function AdminView({ scriptUrl, addToast, theme, setTheme }: Prop
                           <>
                             <button
                               className="btn btn-success btn-sm"
-                              onClick={() => setWaitStatus([w.row], 'Fulfilled')}
+                              onClick={() => setFulfilFor(w)}
                               disabled={busy}
                             >
                               <CheckCircle size={13} /> Fulfilled
@@ -1081,6 +1113,20 @@ export default function AdminView({ scriptUrl, addToast, theme, setTheme }: Prop
             </tbody>
           </table>
         </div>
+      )}
+
+      {fulfilFor && (
+        <FulfilWaitListModal
+          entry={fulfilFor}
+          sessions={data.sessions}
+          busy={busy}
+          onClose={() => setFulfilFor(null)}
+          onAssign={assignFromWaitList}
+          onMarkFulfilledOnly={() => {
+            setWaitStatus([fulfilFor.row], 'Fulfilled');
+            setFulfilFor(null);
+          }}
+        />
       )}
     </>
   );
